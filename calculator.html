@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple Calculator</title>
+  <style>
+    :root{
+      --bg: #0f1724;
+      --card: #0b1220;
+      --accent: #7c3aed;
+      --muted: #94a3b8;
+      --glass: rgba(255,255,255,0.03);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;min-height:100vh;display:grid;place-items:center;background:linear-gradient(180deg,#071021 0%, #051224 100%);font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:#e6eef8;
+    }
+    .calculator{
+      width:360px;max-width:92vw;background:linear-gradient(180deg,var(--card), #071226);
+      border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(2,6,23,0.6);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    .display{
+      background:var(--glass);padding:14px;border-radius:10px;min-height:72px;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;margin-bottom:12px;
+      word-break:break-all;
+    }
+    .display .history{font-size:12px;color:var(--muted);opacity:0.9}
+    .display .output{font-size:28px;font-weight:600}
+    .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+    button.key{
+      padding:16px;border-radius:10px;border:none;font-size:18px;font-weight:600;cursor:pointer;background:transparent;color:inherit;box-shadow:inset 0 -2px 0 rgba(0,0,0,0.35);
+      transition:transform .06s ease, box-shadow .06s ease;
+    }
+    button.key:active{transform:translateY(2px)}
+    .key.fn{background:rgba(255,255,255,0.03);color:var(--muted)}
+    .key.op{background:linear-gradient(180deg,var(--accent),#5b21b6);}
+    .key.equals{grid-column:span 2;background:linear-gradient(90deg,#06b6d4,#7c3aed);}
+    .wide{grid-column:span 2}
+    footer.info{margin-top:12px;font-size:12px;color:var(--muted);text-align:center}
+    @media (max-width:420px){.calculator{padding:12px}}
+  </style>
+</head>
+<body>
+  <main class="calculator" role="application" aria-label="Calculator">
+    <div class="display" id="display">
+      <div class="history" id="history">&nbsp;</div>
+      <div class="output" id="output">0</div>
+    </div>
+
+    <div class="keys">
+      <button class="key fn" data-action="clear">AC</button>
+      <button class="key fn" data-action="negate">+/-</button>
+      <button class="key fn" data-action="percent">%</button>
+      <button class="key op" data-action="op">/</button>
+
+      <button class="key" data-num="7">7</button>
+      <button class="key" data-num="8">8</button>
+      <button class="key" data-num="9">9</button>
+      <button class="key op" data-action="op">*</button>
+
+      <button class="key" data-num="4">4</button>
+      <button class="key" data-num="5">5</button>
+      <button class="key" data-num="6">6</button>
+      <button class="key op" data-action="op">-</button>
+
+      <button class="key" data-num="1">1</button>
+      <button class="key" data-num="2">2</button>
+      <button class="key" data-num="3">3</button>
+      <button class="key op" data-action="op">+</button>
+
+      <button class="key wide" data-num="0">0</button>
+      <button class="key" data-action="dot">.</button>
+      <button class="key equals" data-action="equals">=</button>
+    </div>
+
+    <footer class="info">Tip: you can also use your keyboard. Keys: 0-9 . + - * / Enter = Backspace</footer>
+  </main>
+
+  <script>
+    // Simple calculator logic with a small expression sanitizer.
+    (function(){
+      const outputEl = document.getElementById('output');
+      const historyEl = document.getElementById('history');
+      let current = '';
+      let previous = '';
+      let lastAction = '';
+
+      function refresh(){
+        outputEl.textContent = current || '0';
+        historyEl.textContent = previous || '\u00A0';
+      }
+
+      function appendDigit(d){
+        if(lastAction === 'equals'){
+          // start fresh after equals
+          previous = '';
+          current = '';
+          lastAction = '';
+        }
+        // prevent multiple leading zeros
+        if(current === '0' && d === '0') return;
+        if(current === '0' && d !== '.') current = d;
+        else current += d;
+        refresh();
+      }
+
+      function appendDot(){
+        if(current.includes('.')) return;
+        if(current === '') current = '0.';
+        else current += '.';
+        refresh();
+      }
+
+      function doPercent(){
+        if(!current) return;
+        current = String(parseFloat(current) / 100);
+        refresh();
+      }
+
+      function negate(){
+        if(!current) return;
+        current = String(parseFloat(current) * -1);
+        refresh();
+      }
+
+      function clearAll(){
+        current = '';
+        previous = '';
+        lastAction = '';
+        refresh();
+      }
+
+      function backspace(){
+        if(current) current = current.slice(0,-1);
+        refresh();
+      }
+
+      function setOperator(op){
+        if(!current && previous){
+          // change operator at end of previous
+          previous = previous.slice(0,-1) + op;
+          lastAction = 'op';
+          refresh();
+          return;
+        }
+        if(!current) return;
+        previous = (previous ? previous + ' ' : '') + current + ' ' + op;
+        current = '';
+        lastAction = 'op';
+        refresh();
+      }
+
+      function compute(){
+        if(!current && !previous) return;
+        // build full expression
+        let expr = previous + (current || '');
+        // normalize — replace unicode x with * if any
+        expr = expr.replace(/×/g,'*').replace(/÷/g,'/');
+        // sanitize: allow only digits, spaces, + - * / . and parentheses
+        if(!/^[-+*/0-9().\s%]+$/.test(expr)){
+          outputEl.textContent = 'Error';
+          return;
+        }
+        try{
+          // Evaluate using Function constructor — slightly safer than eval here
+          // but still evaluate only after sanitization.
+          // Also handle percent signs by converting X% to (X/100)
+          expr = expr.replace(/(\d+(?:\.\d+)?)%/g,'($1/100)');
+          const result = Function('return ' + expr)();
+          previous = '';
+          current = String(result);
+          lastAction = 'equals';
+          refresh();
+        }catch(e){
+          outputEl.textContent = 'Error';
+        }
+      }
+
+      document.querySelectorAll('button.key').forEach(btn => {
+        btn.addEventListener('click', ()=>{
+          const num = btn.getAttribute('data-num');
+          const action = btn.getAttribute('data-action');
+          if(num !== null){ appendDigit(num); }
+          else if(action === 'dot'){ appendDot(); }
+          else if(action === 'percent'){ doPercent(); }
+          else if(action === 'negate'){ negate(); }
+          else if(action === 'clear'){ clearAll(); }
+          else if(action === 'op'){ setOperator(btn.textContent.trim()); }
+          else if(action === 'equals'){ compute(); }
+        });
+      });
+
+      // keyboard support
+      window.addEventListener('keydown', (e)=>{
+        if(e.key >= '0' && e.key <= '9'){ appendDigit(e.key); e.preventDefault(); return; }
+        if(e.key === '.') { appendDot(); e.preventDefault(); return; }
+        if(e.key === 'Enter' || e.key === '='){ compute(); e.preventDefault(); return; }
+        if(e.key === 'Backspace'){ backspace(); e.preventDefault(); return; }
+        if(e.key === '%'){ doPercent(); e.preventDefault(); return; }
+        if(['+','-','/','*'].includes(e.key)){ setOperator(e.key); e.preventDefault(); return; }
+        if(e.key.toLowerCase() === 'c'){ clearAll(); e.preventDefault(); return; }
+      });
+
+      // start
+      clearAll();
+    })();
+  </script>
+</body>
+<!-- VERSION: MAIN -->
+</html>
